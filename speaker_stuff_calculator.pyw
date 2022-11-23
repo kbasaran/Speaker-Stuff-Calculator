@@ -62,15 +62,8 @@ def find_nearest_freq(array: np.array, desired: (int, float)):
     return array[idx], idx
 
 
-def read_clipboard():
-    try:
-        return(0, pd.read_clipboard(header=None))
-    except Exception:
-        return(1, None)
-
-
 def analyze_clipboard_data(err, clpd):
-    """Check clipboard data and try to extract a 2D plot from it."""
+    "Check clipboard data and try to extract a 2D plot from it."
 
     def is_number(val):
         try:
@@ -109,7 +102,7 @@ def analyze_clipboard_data(err, clpd):
 
 
 class Record(object):
-    """Make a simple object to store attributes."""
+    "Make a simple object to store attributes."
 
     def setattrs(self, **dictionary):
         """Add attributes to the object in a loop."""
@@ -133,11 +126,11 @@ setattr(cons, "FS", 48000)
 
 
 def beep(frequency=1175, requested_duration=60):
-    """Beep without a click in the end."""
+    "Beep without a click in the end."
     FS = cons.FS
     N_wave = round(frequency * requested_duration / 1e3, 0)  # made integer to avoid clicking end of signal
     N_sample = int(N_wave * FS / frequency) + 1
-    signal = (0.5 * np.sin(frequency * 2 * np.pi * (np.arange(N_sample)) / FS)).astype(np.float32)
+    signal = (0.25 * np.sin(frequency * 2 * np.pi * (np.arange(N_sample)) / FS)).astype(np.float32)
     sd.play(signal, FS)
 
 
@@ -146,12 +139,12 @@ def beep_bad():
 
 
 def calculate_air_mass(Sd):
-    """Air mass on diaphragm; the difference between Mms and Mmd."""
+    "Air mass on diaphragm; the difference between Mms and Mmd."
     return 1.13*(Sd)**(3/2)  # m2 in, kg out
 
 
 def calculate_Lm(Bl, Re, Mms, Sd):
-    """Calculate Lm@Re, 1W, 1m."""
+    "Calculate Lm@Re, 1W, 1m."
     w_ref = 10**-12
     I_1W_per_m2 = cons.RHO * Bl**2 * Sd**2 / cons.c_air / Re / Mms**2 / 2 / np.pi
     P_over_I_half_space = 1/2/np.pi  # m²
@@ -159,7 +152,8 @@ def calculate_Lm(Bl, Re, Mms, Sd):
 
 
 def calculate_Xmech(Xmax):
-    """Proposed Xmech value for given Xmax value.
+    """
+    Proposed Xmech value for given Xmax value.
 
     All values in basic SI units.
     """
@@ -168,7 +162,7 @@ def calculate_Xmech(Xmax):
 
 
 def calculate_windings(wire_type, N_layers, former_OD, h_winding):
-    """Calculate coil mass, Rdc and l for a given coil."""
+    "Calculate coil mass, Rdc and l for a given coil."
     global cons
     w_wire = cons.VC_TABLE.loc[wire_type, "width, m*e-6, avg"] / 1e6
     w_wire_max = cons.VC_TABLE.loc[wire_type, "width, m*e-6, max"] / 1e6
@@ -209,7 +203,7 @@ def calculate_windings(wire_type, N_layers, former_OD, h_winding):
 
 
 def calculate_input_voltage(excitation, Rdc, nominal_impedance):
-    """Simplify electrical input definition to input voltage."""
+    "Simplify electrical input definition to input voltage."
     val, type = excitation
     if type == "Wn":
         input_voltage = (val * nominal_impedance) ** 0.5
@@ -228,7 +222,7 @@ def calculate_input_voltage(excitation, Rdc, nominal_impedance):
 class UserForm():
 
     def __post_init__(self):
-        """Post-init the form."""
+        "Post-init the form."
         self.user_curves = []
         my_path = "C:\\Users\\kerem.basaran\\OneDrive - PremiumSoundSolutions\\Documents\\_Python\\SSC files"
         if Path(my_path).exists():
@@ -284,7 +278,7 @@ class UserForm():
 
     # Convenience functions to add rows to input_form_layout layout
     def add_line(self, to_layout):
-        """Add a separator line in the form layout."""
+        "Add a separator line in the form layout."
         line = qtw.QFrame()
         line.setFrameShape(qtw.QFrame.HLine)
         line.setFrameShadow(qtw.QFrame.Sunken)
@@ -292,7 +286,7 @@ class UserForm():
         to_layout.addRow(line)
 
     def add_title(self, to_layout, string):
-        """Add a title to different user input form groups."""
+        "Add a title to different user input form groups."
         title = qtw.QLabel()
         title.setText(string)
         title.setStyleSheet("font-weight: bold")
@@ -301,7 +295,7 @@ class UserForm():
 
     def add_double_float_var(self, to_layout, var_name, description, min_val=0,
                              max_val=1e5, default=0, unit_to_SI=1):
-        """Add a row for double float user variable input."""
+        "Add a row for double float user variable input."
         item = {"obj": qtw.QDoubleSpinBox(), "unit_to_SI": unit_to_SI}
         item["obj"].setMinimumSize(52, 18)
         item["obj"].setRange(min_val, max_val)
@@ -311,7 +305,8 @@ class UserForm():
         to_layout.addRow(description,  getattr(self, var_name)["obj"])
 
     def add_combo_box(self, to_layout, combo_box_name, combo_list, combo_box_screen_name=False):
-        """Make a combo box.
+        """
+        Make a combo box.
 
         combo_box_name is the attribute name under form object
         item_list contains tuples as list items. first is visible name second is user_data.
@@ -329,7 +324,7 @@ class UserForm():
 
     def add_integer_var(self, to_layout, var_name, description, min_val=1,
                         max_val=1e6, default=0, unit_to_SI=1):
-        """Add a row for integer value user variable input."""
+        "Add a row for integer value user variable input."
         item = {"obj": qtw.QSpinBox(), "unit_to_SI": unit_to_SI}
         item["obj"].setMinimumSize(52, 18)
         item["obj"].setRange(min_val, max_val)
@@ -338,7 +333,7 @@ class UserForm():
         to_layout.addRow(description,  getattr(self, var_name)["obj"])
 
     def add_string_var(self, to_layout, var_name, description, default=""):
-        """Add string var."""
+        "Add string var."
         item = {"obj": qtw.QLineEdit()}
         item["obj"].setMinimumSize(52, 18)
         setattr(self, var_name, item)
@@ -346,7 +341,7 @@ class UserForm():
         to_layout.addRow(description, getattr(self, var_name)["obj"])
 
     def set_value(self, item_name, value):
-        """Set value of a form item."""
+        "Set value of a form item."
         item = getattr(self, item_name)
         try:
             if isinstance(item["obj"], QObject):
@@ -1168,20 +1163,21 @@ if __name__ == "__main__":
     # %% Functions for buttons under the graph
     def import_user_curve():
         global cons, form
-        err, clpd = read_clipboard()
-        if err != 0:
+        try:
+            clpd = pd.read_clipboard(header=None)
+        except:
             print("Unable to read clipboard")
             beep_bad()
             return
+        data_type, title, curve_data = analyze_clipboard_data(clpd)
+        print(data_type)
+
+        if isinstance(curve_data, pd.DataFrame) and len(curve_data.columns == 2):
+            # not using the title yet. to be implemented
+            print(curve_data.iloc[:,0])
+            form.user_curves.append([curve_data[0].to_numpy(), curve_data[1].to_numpy()])
+            update_view()
         else:
-            data_type, title, curve_data = analyze_clipboard_data(err, clpd)
-            print(data_type)
-            if isinstance(curve_data, pd.DataFrame) and len(curve_data.columns == 2):
-                # not using the title yet. to be implemented
-                print(curve_data.iloc[:,0])
-                form.user_curves.append([curve_data[0].to_numpy(), curve_data[1].to_numpy()])
-                update_view()
-                return
             beep_bad()
 
     def clear_user_curve():
