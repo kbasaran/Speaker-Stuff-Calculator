@@ -73,14 +73,11 @@ if __name__ == "__main__":
     # dict key: friendly name, value: list of keywords to look for in import name
     group_keywords = {
         "Mass production": ["MP"],
-        "SSE cone": ["SSE"],
+        "Other": ["Other"],
     }
 
     # dictionary key=imported name, value=desired name
     single_entries = {
-        "1715-018-011 Lm 85.1 - D.01.01": 'G01 D sample - 1715-018-011',
-        "7148 PSS 41 57485 DZ D.01.01": 'G08 D sample - 41.57485',
-        "1701-025-004 DZ": 'G01 2018 Q-lab reference',
     }
 
     if True:
@@ -115,7 +112,7 @@ if __name__ == "__main__":
                         10**(df_group.loc[:, freq] / 10)
                     ))
 
-        # Rename some curves. It canb be any of the imported curves.
+        # Rename some curves. It can be any of the imported curves.
         df.rename(single_entries, inplace=True)
 
         # write to file
@@ -158,7 +155,7 @@ if __name__ == "__main__":
             # plt.scatter(i, sens_list[row_name], label=row_name)
         print(f"{i} - {row_name}: {mean_val:.2f}")
 
-    ax.set_title("MM100DZ G08 - Mass production vs. test group")
+    ax.set_title("Comparison production vs. test group")
     ax.set_ylabel("dB")
     ax.set_xlabel("frequency (Hz)")
     ax.set_ylim(75, 105)
