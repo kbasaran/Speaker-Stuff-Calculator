@@ -545,7 +545,7 @@ class InputSectionTabWidget(qtw.QTabWidget):
                                       decimals=3,
                                       min_max=(0.1, None),
                                       ),
-                     description="h - ratio (f<sub>p</sub> / f<sub>b</sub>)",
+                     description="h - ratio (f<sub>p_free</sub> / f<sub>b</sub>)",
                      )
 
         # Resonator spec type
