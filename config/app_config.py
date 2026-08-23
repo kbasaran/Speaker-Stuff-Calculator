@@ -14,7 +14,7 @@ APP_DEFINITIONS = {"app_name": "Speaker Calculator",
                    "website": "https://github.com/kbasaran",
                    }
 # uncomment for release candidate builds
-# APP_DEFINITIONS["version"] += "rc" + time.strftime("%y%m%d", time.localtime())
+APP_DEFINITIONS["version"] += "rc" + time.strftime("%y%m%d", time.localtime())
 
 # Text shown in the Help -> About dialog.
 ABOUT_TEXT = "\n".join([
