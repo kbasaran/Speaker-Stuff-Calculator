@@ -427,35 +427,28 @@ class SpeakerSystem:
                 f"f<sub>p_housed</sub> : {fp:.4g}&nbsp;&nbsp;&nbsp;&nbsp;"
                 f"f<sub>p_free</sub> : {f_pipe:.4g}<br>"
                 
-                f"Port : &#8960;{diam * 1000:.4g} mm × {port_len * 1000:.4g} mm, {port_len * np.pi * diam**2 / 4 * 1e3:.3g} l<br>"
+                f"Port : &#8960;{diam * 1000:.4g} mm × {port_len * 1000:.4g} mm<br>"
 
                 f"f<sub>b</sub> : {self.fb:.4g} Hz&nbsp;&nbsp;&nbsp;&nbsp;"
                 f"Q<sub>p</sub> : {port.Qp(Vba):.3g}<br>"
-                "</p>"
-                "<p>"
-                f"{self._h_over_fs_html()}<br>"
-                f"{self._alpha_html()}<br>"
-            )
+                
+                f"{self._alpha_html()}&nbsp;&nbsp;&nbsp;&nbsp;{self._h_over_fs_html()}<br>"
 
+                f"S<sub>v</sub>/S<sub>d</sub> : {port.S / self.speaker.Sd:.3g}&nbsp;&nbsp;&nbsp;&nbsp;"
+                f"L/D : {port_len / diam:.3g}"
+                "</p>"
+                )
             if freqs is not None:
                 v_peak = self._peak_port_velocity(V_source, freqs)
                 mach = v_peak / air.c_air
                 warn = ("<br>&#9888; chuffing likely"
                         if v_peak > _PORT_CHUFF_VELOCITY else "")
                 summary += (
+                    "<p>"
                     f"v<sub>port,peak</sub> : {v_peak:.3g} m/s (Mach {mach:.3f})"
                     f"{warn}"
-                    "<br>"
+                    "</p>"
                     )
-
-            summary += (
-                "</p>"
-                "<p>"
-                f"S<sub>v</sub>/S<sub>d</sub> : {port.S / self.speaker.Sd:.3g}&nbsp;&nbsp;&nbsp;&nbsp;"
-                f"L/D : {port_len / diam:.3g}"
-                "</p>"
-                )
-
         elif isinstance(self.passive_radiator, PassiveRadiator):
             pr = self.passive_radiator
             Vba = self.enclosure.Vba()
@@ -470,24 +463,21 @@ class SpeakerSystem:
                 
                 f"f<sub>b</sub> : {self.fb:.4g} Hz&nbsp;&nbsp;&nbsp;&nbsp;"
                 f"Q<sub>p</sub> : {pr.Qp(Vba):.3g}<br>"
+                
+                f"K<sub>pr</sub> : {pr.k / 1000:.4g} N/mm&nbsp;&nbsp;&nbsp;&nbsp;"
+                f"K<sub>pr,housed</sub> : {(pr.k + pr.k_box(Vba)) / 1000:.4g}<br>"
+                
+                f"{self._alpha_html()}&nbsp;&nbsp;&nbsp;&nbsp;{self._h_over_fs_html()}"
                 "</p>"
-                "<p>"
-                f"{self._h_over_fs_html()}<br>"
-                f"{self._alpha_html()}<br>"
                 )
             if freqs is not None:
                 x_pr = self._peak_pr_excursion(V_source, freqs) * 1000
                 xp = self.speaker.Xpeak
                 summary += (
-                    f"x<sub>pr,peak</sub> : {x_pr:.3g} mm<br>"
+                    "<p>"
+                    f"x<sub>pr,peak</sub> : {x_pr:.3g} mm"
+                    "</p>"
                     )
-            summary += (
-            "</p>"
-            "<p>"
-            f"K<sub>pr</sub> : {pr.k / 1000:.4g} N/mm&nbsp;&nbsp;&nbsp;&nbsp;"
-            f"K<sub>pr,housed</sub> : {(pr.k + pr.k_box(Vba)) / 1000:.4g}<br>"
-            "</p>"
-            )
         elif isinstance(self.enclosure, Enclosure):
             summary += (
                 "<h4>Enclosure</h4>"
@@ -532,7 +522,7 @@ class SpeakerSystem:
                 or self.enclosure.Vba() <= 0):
             return ""
         h = self.passive_radiator.f_housed(self.enclosure.Vba()) / self.speaker.fs
-        return f"H (f<sub>p_housed</sub>/f<sub>s</sub>) : {h:.3g}"
+        return f"f<sub>p_housed</sub>/f<sub>s</sub> : {h:.3g}"
 
     def _peak_port_velocity(self, V_source, freqs: np.ndarray) -> float:
         "Peak air-particle velocity in the vent [m/s] over the given frequency range."
