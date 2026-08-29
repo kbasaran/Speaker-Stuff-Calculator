@@ -159,6 +159,7 @@ class MainWindow(qtw.QMainWindow):
                                                         4: "Forces",
                                                         5: "Velocities",
                                                         6: "Phase",
+                                                        7: "Box pressure",
                                                         },
 
                                                        {0: "/",
@@ -168,6 +169,7 @@ class MainWindow(qtw.QMainWindow):
                                                            4: "/",
                                                            5: "/",
                                                            6: "/",
+                                                           7: "Pressure of the air inside the enclosure, relative to ambient.",
                                                         },
 
                                                        )

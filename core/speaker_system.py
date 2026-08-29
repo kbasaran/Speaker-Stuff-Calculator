@@ -623,7 +623,9 @@ class SpeakerSystem:
         pressures = dict()
 
         if self.enclosure is not None:  # without a housing there is no pressure build-up
-            pressures["Housing, RMS"] = self._get_response("p_housing", V_source, freqs)
+            p_housing = self._get_response("p_housing", V_source, freqs)
+            pressures["Housing, peak"] = p_housing * 2**0.5
+            pressures["Housing, RMS"] = p_housing
 
         return pressures
 

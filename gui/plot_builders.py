@@ -141,6 +141,21 @@ def build_velocities(spk_sys, freqs, V_source, V_spk, W_spk) -> PlotSpec:
                     )
 
 
+def build_box_pressure(spk_sys, freqs, V_source, V_spk, W_spk) -> PlotSpec:
+    # Sound pressure of the air inside the enclosure, relative to ambient.
+    # Without an enclosure there is no pressure build-up, so nothing is drawn.
+    curves = {key: np.abs(val) for key, val in spk_sys.get_pressures(V_source, freqs).items()}
+    if not curves:
+        title = "Sound pressure in the box\nNo enclosure in this model"
+    else:
+        title = f"Sound pressure in the box\n{_voltage_line(spk_sys, V_source, V_spk, W_spk)}"
+    return PlotSpec(curves,
+                    title=title,
+                    ylabel="Pa",
+                    line_kwargs=_dotted_for_peak(curves),
+                    )
+
+
 def build_phase(spk_sys, freqs, *args) -> PlotSpec:
     curves = dict(spk_sys.get_phases(freqs).items())
     return PlotSpec(curves,
@@ -160,4 +175,5 @@ PLOT_BUILDERS = {
     4: build_forces,
     5: build_velocities,
     6: build_phase,
+    7: build_box_pressure,
 }
