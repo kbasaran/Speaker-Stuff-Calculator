@@ -9,10 +9,11 @@ systems.
 
 import numpy as np
 
+from config.app_config import APP_DEFINITIONS
 from core.calculations import calculate_spl
 
 # The window title reports the response at a low frequency and at the top of the
-# calculated range. 40 Hz is low enough to sit in the region an enclosure design
+# calculated range. 30 Hz is low enough to sit in the region an enclosure design
 # is judged on, while still being inside the default sweep.
 TITLE_SPL_LOW_FREQ = 30.0
 
@@ -78,5 +79,6 @@ def window_title(spk_sys, V_source, user_title: str, f_max: float) -> str:
         parts.append(f"{spl_low:.1f}/{spl_high:.1f} dB @ {TITLE_SPL_LOW_FREQ:.0f}/{f_max:.0f} Hz")
 
     parts.append(f"{W_spk:.2g} W")
+    app_version = f"{APP_DEFINITIONS["app_name"]} {APP_DEFINITIONS["version"]}"
 
-    return "  -  ".join(parts)
+    return "  -  ".join(parts) + "  /  " + app_version
