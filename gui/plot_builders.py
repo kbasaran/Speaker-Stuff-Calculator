@@ -97,7 +97,7 @@ def build_relative_displacements(spk_sys, freqs, V_source, V_spk, W_spk) -> Plot
               if "relative" in key}
 
     if not curves:
-        title = "Displacements - relative to parent body\nNo parent body in this model"
+        title = "Displacements - relative to parent body\n-No parent body in this model-"
     else:
         title = f"Displacements - relative to parent body\n{_voltage_line(spk_sys, V_source, V_spk, W_spk)}"
 
@@ -142,9 +142,9 @@ def build_box_pressure(spk_sys, freqs, V_source, V_spk, W_spk) -> PlotSpec:
     # Without an enclosure there is no pressure build-up, so nothing is drawn.
     curves = {key: np.abs(val) for key, val in spk_sys.get_pressures(V_source, freqs).items()}
     if not curves:
-        title = "Sound pressure in the box\nNo enclosure in this model"
+        title = "Sound pressure inside the enclosure\n-No enclosure in this model-"
     else:
-        title = f"Sound pressure in the box\n{_voltage_line(spk_sys, V_source, V_spk, W_spk)}"
+        title = f"Sound pressure inside the enclosure\n{_voltage_line(spk_sys, V_source, V_spk, W_spk)}"
     return PlotSpec(curves,
                     title=title,
                     ylabel="Pa",

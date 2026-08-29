@@ -162,7 +162,7 @@ class MainWindow(qtw.QMainWindow):
                                                         4: "Forces",
                                                         5: "Velocities",
                                                         6: "Phase",
-                                                        7: "Box pressure",
+                                                        7: "Pressure",
                                                         },
 
                                                        {0: "/",
