@@ -166,7 +166,7 @@ class SpeakerDriver:
 
         if self.motor is not None:
             Xcrash = calculate_coil_to_bottom_plate_clearance(self.Xpeak)
-            summary += f"&nbsp;&nbsp;&nbsp;&nbsp;X<sub>crash_recommended</sub> : {Xcrash*1000:.3g}"
+            summary += f"&nbsp;&nbsp;&nbsp;&nbsp;X<sub>crash_recomm.</sub> : {Xcrash*1000:.3g}"
 
         summary += "</p>"
 
