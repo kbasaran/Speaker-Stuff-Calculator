@@ -173,7 +173,10 @@ class MainWindow(qtw.QMainWindow):
                                                         },
 
                                                        )
-        self.graph_data_choice.buttons()[2].setEnabled(False)  # the relative button is disabled at start
+        # Disabled until a model exists; from then on their availability follows the
+        # built speaker system (see _update_graph_data_choice_availability).
+        self.graph_data_choice.buttons()[2].setEnabled(False)  # relative displacements
+        self.graph_data_choice.buttons()[7].setEnabled(False)  # box pressure
 
         self.graph_pushbuttons = pwi.PushButtonGroup({"export_curve": "Export curve",
                                                       "export_json": "Export model",
@@ -284,10 +287,6 @@ class MainWindow(qtw.QMainWindow):
             button.pressed.connect(lambda arg1=button_id: self.update_graph(arg1))
         self.graph_pushbuttons.buttons()["export_curve_pushbutton"].clicked.connect(self._export_curve_clicked)
         self.graph_pushbuttons.buttons()["export_json_pushbutton"].clicked.connect(self._export_model_clicked)
-
-        # disable the relative plots
-        self.input_form.interactable_widgets["parent_body"].buttons()[1].toggled.connect(
-            self.graph_data_choice.buttons()[2].setEnabled)
 
         # Drag and drop functionality
         self.input_form.signal_file_dropped.connect(self.load_state_from_file)
@@ -478,7 +477,20 @@ class MainWindow(qtw.QMainWindow):
 
         self.graph.update_figure()
 
+    def _update_graph_data_choice_availability(self, spk_sys):
+        """Enable only the graph choices the current speaker system can provide.
+
+        Availability is read off the built model rather than off the input form, so
+        the buttons always agree with what the plot builders would find in it. A
+        choice that is disabled while checked simply leaves its graph empty.
+        """
+        # Relative displacements exist only against a parent body, box pressure only
+        # when there is enclosure air; both mirror the checks in the model's getters.
+        self.graph_data_choice.buttons()[2].setEnabled(spk_sys.parent_body is not None)
+        self.graph_data_choice.buttons()[7].setEnabled(spk_sys.enclosure is not None)
+
     def update_all_results(self):
+        self._update_graph_data_choice_availability(self.speaker_model_state["system"])
         checked_id = self.graph_data_choice.button_group.checkedId()
         self.update_graph(checked_id)
         # The sweep-based summary checks (port chuffing velocity, PR excursion) need
