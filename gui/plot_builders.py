@@ -15,6 +15,7 @@ import numpy as np
 
 from core.calculations import calculate_spl
 from core.components import BassReflexPort
+from gui.labels import voltage_line as _voltage_line
 
 
 @dataclass
@@ -33,17 +34,6 @@ class PlotSpec:
 def _dotted_for_peak(curve_names) -> dict[str, dict]:
     """Line kwargs drawing 'peak' curves dotted, leaving RMS (and any others) solid."""
     return {name: {"linestyle": ":"} for name in curve_names if "peak" in name.lower()}
-
-
-def _voltage_line(spk_sys, V_source, V_spk, W_spk) -> str:
-    """Second title line describing the excitation voltage.
-
-    When the speaker Re equals the system resistance there is no series
-    network, so a single voltage is shown; otherwise both are reported.
-    """
-    if spk_sys.speaker.Re == spk_sys.R_sys:
-        return f"{V_spk:.4g}V {W_spk:.3g}Watt @ Re"
-    return f"System: {V_source:.4g}V, Speaker: {V_spk:.4g}V {W_spk:.3g}Watt @ Re"
 
 
 def build_spl(spk_sys, freqs, V_source, V_spk, W_spk) -> PlotSpec:

@@ -26,6 +26,7 @@ from gui.help_menu import show_file_paths, show_physics_constants
 from gui.coil_options import update_coil_options_combobox
 from gui.input_section_tab_widget import InputSectionTabWidget
 from gui.plot_builders import PLOT_BUILDERS
+from gui import labels
 from gui import session_io
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,8 @@ class MainWindow(qtw.QMainWindow):
     def __init__(self, sound_engine, wires, user_form_dict=None, open_user_file=None):
         super().__init__()
         self.wires = wires
+        # Placeholder until the first model exists; from then on the title carries
+        # the design's identity (see _update_window_title).
         self.setWindowTitle(" - ".join(
             (APP_DEFINITIONS["app_name"],
              APP_DEFINITIONS["version"])
@@ -288,6 +291,9 @@ class MainWindow(qtw.QMainWindow):
         self.graph_pushbuttons.buttons()["export_curve_pushbutton"].clicked.connect(self._export_curve_clicked)
         self.graph_pushbuttons.buttons()["export_json_pushbutton"].clicked.connect(self._export_model_clicked)
 
+        # the design's title leads the window title, so track it while it is typed
+        self.title_textbox.textChanged.connect(self._update_window_title)
+
         # Drag and drop functionality
         self.input_form.signal_file_dropped.connect(self.load_state_from_file)
 
@@ -456,8 +462,7 @@ class MainWindow(qtw.QMainWindow):
         freqs = signal_tools.generate_log_spaced_freq_list(app_settings.get_value("f_min"),
                                                            app_settings.get_value("f_max"),
                                                            app_settings.get_value("calc_ppo"))
-        V_spk = V_source / spk_sys.R_sys * spk_sys.speaker.Re
-        W_spk = V_spk**2 / spk_sys.speaker.Re
+        V_spk, W_spk = labels.excitation_at_speaker(spk_sys, V_source)
 
         try:
             builder = PLOT_BUILDERS[checked_id]
@@ -489,8 +494,19 @@ class MainWindow(qtw.QMainWindow):
         self.graph_data_choice.buttons()[2].setEnabled(spk_sys.parent_body is not None)
         self.graph_data_choice.buttons()[7].setEnabled(spk_sys.enclosure is not None)
 
+    def _update_window_title(self):
+        """Identify this window's design in the title bar, task bar and switcher."""
+        if not hasattr(self, "speaker_model_state"):
+            return  # no model yet; the placeholder title from __init__ stands
+        self.setWindowTitle(labels.window_title(self.speaker_model_state["system"],
+                                                self.speaker_model_state["V_source"],
+                                                self.title_textbox.text(),
+                                                app_settings.get_value("f_max"),
+                                                ))
+
     def update_all_results(self):
         self._update_graph_data_choice_availability(self.speaker_model_state["system"])
+        self._update_window_title()
         checked_id = self.graph_data_choice.button_group.checkedId()
         self.update_graph(checked_id)
         # The sweep-based summary checks (port chuffing velocity, PR excursion) need

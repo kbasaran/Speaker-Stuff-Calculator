@@ -1,0 +1,82 @@
+"""Short human-readable labels derived from a speaker system.
+
+These helpers turn model state into presentation strings: the excitation line
+that heads the graph titles and the one-line window title that identifies a
+design when several windows are open side by side. Like the plot builders they
+carry no Qt dependency, so they can be unit-tested against known speaker
+systems.
+"""
+
+import numpy as np
+
+from core.calculations import calculate_spl
+
+# The window title reports the response at a low frequency and at the top of the
+# calculated range. 40 Hz is low enough to sit in the region an enclosure design
+# is judged on, while still being inside the default sweep.
+TITLE_SPL_LOW_FREQ = 30.0
+
+
+def excitation_at_speaker(spk_sys, V_source) -> tuple[float, float]:
+    """Voltage across the speaker terminals and the power into Re, from V_source.
+
+    A series resistance (source, cables) divides the source voltage down, so the
+    speaker only sees V_source * Re / R_sys.
+    """
+    V_spk = V_source / spk_sys.R_sys * spk_sys.speaker.Re
+    return V_spk, V_spk**2 / spk_sys.speaker.Re
+
+
+def voltage_line(spk_sys, V_source, V_spk, W_spk) -> str:
+    """Excitation voltage description, used in graph and window titles.
+
+    When the speaker Re equals the system resistance there is no series
+    network, so a single voltage is shown; otherwise both are reported.
+    """
+    if spk_sys.speaker.Re == spk_sys.R_sys:
+        return f"{V_spk:.4g}V {W_spk:.3g}Watt @ Re"
+    return f"System: {V_source:.4g}V, Speaker: {V_spk:.4g}V {W_spk:.3g}Watt @ Re"
+
+
+def _total_spl(spk_sys, freqs, V_source) -> np.ndarray:
+    """Radiated SPL including the PR/vent contribution, i.e. the summed output.
+
+    Mirrors the "incl. radiator" curve of build_spl: SPL is proportional to the
+    total radiated volume velocity, so the diaphragm and PR/vent volume
+    velocities are summed and fed to calculate_spl with sd=1. The PR/vent
+    velocity already carries the dir_pr_vent sign, so it adds directly.
+    """
+    velocs = spk_sys.get_velocities(V_source, freqs)
+    U = spk_sys.speaker.Sd * velocs["Diaphragm, RMS"]
+    if spk_sys.passive_radiator is not None:
+        U = U + spk_sys.passive_radiator.S * velocs["PR/vent, RMS"]
+    _, SPL = calculate_spl((freqs, U), 1.0)
+    return SPL
+
+
+def window_title(spk_sys, V_source, user_title: str, f_max: float) -> str:
+    """One-line design identity for the window title bar.
+
+    Puts the user's own title first, followed by the handful of numbers that
+    distinguish one design from another at a glance, so windows holding
+    different designs can be told apart in the task bar and window switcher.
+    """
+    spk = spk_sys.speaker
+    V_spk, W_spk = excitation_at_speaker(spk_sys, V_source)
+
+    parts = [user_title.strip() or "Untitled",
+             f"{spk.Sd * 1e4:.3g} cm²",
+             f"{spk.Bl**2 / spk.Re:.2g} N²/W",
+             f"{spk.Mms * 1e3:.3g} g",
+             ]
+
+    # A driver with no diaphragm (shaker) radiates no sound; build_spl plots its
+    # acceleration instead, so there is no SPL to report here.
+    if spk.Sd > 0:
+        freqs = np.array([TITLE_SPL_LOW_FREQ, f_max])
+        spl_low, spl_high = _total_spl(spk_sys, freqs, V_source)
+        parts.append(f"{spl_low:.1f}/{spl_high:.1f} dB @ {TITLE_SPL_LOW_FREQ:.0f}/{f_max:.0f} Hz")
+
+    parts.append(f"{W_spk:.2g} W")
+
+    return "  -  ".join(parts)
