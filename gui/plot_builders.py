@@ -105,8 +105,14 @@ def build_relative_displacements(spk_sys, freqs, V_source, V_spk, W_spk) -> Plot
     curves = {key: np.abs(val) * 1e3
               for key, val in spk_sys.get_displacements(V_source, freqs).items()
               if "relative" in key}
+
+    if not curves:
+        title = "Displacements - relative to parent body\nNo parent body in this model"
+    else:
+        title = f"Displacements - relative to parent body\n{_voltage_line(spk_sys, V_source, V_spk, W_spk)}"
+
     return PlotSpec(curves,
-                    title=f"Displacements - relative to parent body\n{_voltage_line(spk_sys, V_source, V_spk, W_spk)}",
+                    title=title,
                     ylabel="mm",
                     line_kwargs=_dotted_for_peak(curves),
                     )
