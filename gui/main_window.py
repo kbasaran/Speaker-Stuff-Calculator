@@ -472,6 +472,15 @@ class MainWindow(qtw.QMainWindow):
         spec = builder(spk_sys, freqs, V_source, V_spk, W_spk)
 
         self.graph.set_y_limits_policy(spec.ylimits_policy)
+        # The graph widget autoscales the x axis unless a policy says otherwise.
+        # The curves are calculated over exactly f_min..f_max, so pin the axis to
+        # that same range. The limits are passed explicitly instead of relying on
+        # the widget's own fallback to the settings, so the axis always agrees
+        # with the freqs array above.
+        self.graph.set_x_limits_policy("fixed",
+                                       min=app_settings.get_value("f_min"),
+                                       max=app_settings.get_value("f_max"),
+                                       )
         self.graph.set_title(spec.title)
         self.graph.set_xlabel(spec.xlabel)
         self.graph.set_ylabel(spec.ylabel)
