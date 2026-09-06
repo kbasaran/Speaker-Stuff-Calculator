@@ -1,9 +1,15 @@
-"""Generation of the standalone HTML report.
+"""Generation of the standalone PDF report.
 
-The report is one self-contained file: the results summary, the input-form
-values that the summary does not already carry, and the graphs as base64 PNGs.
-Nothing is linked from outside, so the document can be mailed or archived on
-its own.
+The report is written as HTML against a template and then laid out onto A4
+sheets by the Qt WebEngine, the same engine that draws a page in a browser.
+Going through HTML keeps the whole design of the document
+-- its two columns, its tables, where its pages break -- in one stylesheet that
+can be opened and tried out in a browser, rather than in drawing calls here.
+
+The result is one self-contained file: the results summary, the input-form
+values that the summary does not already carry, and the graphs as embedded
+PNGs. Nothing is linked from outside, so the document can be mailed or archived
+on its own.
 
 The graphs are drawn by a second, never-shown MatplotlibWidget rather than by
 the one on screen. That keeps every styling decision (log-frequency ticks,
@@ -19,30 +25,51 @@ import json
 import logging
 import math
 import re
+import tempfile
 import time
 from itertools import groupby
 from pathlib import Path
 from string import Template
 
+from PySide6 import QtCore as qtc
+from PySide6 import QtGui as qtg
 from PySide6 import QtWidgets as qtw
+# Imported here, at module scope, so that it is in place before the application
+# builds its QApplication -- the order the web engine asks for. It costs about
+# 30 MB of memory and no measurable time.
+from PySide6.QtWebEngineCore import QWebEnginePage
 
 from generictools import signal_tools
 from generictools.graphing_widget import MatplotlibWidget
 
 from config.app_config import APP_DEFINITIONS, singleton_settings
 from gui import labels
+from gui import session_io
 from gui.plot_builders import PLOT_BUILDERS, apply_spec, graph_is_available
 from utils.paths import get_main_dir
 
 logger = logging.getLogger(__name__)
 app_settings = singleton_settings()
 
-FILE_FILTER = "HTML documents (*.html)"
-FILE_SUFFIX = ".html"
+FILE_FILTER = "PDF documents (*.pdf)"
+FILE_SUFFIX = ".pdf"
 
 # Relative to the installation folder; bundled with the rest of data/ by the
 # packaging script.
 TEMPLATE_FILE = "data/report_template.html"
+
+# The sheet the report is printed on. The margins live here rather than in the
+# template's @page rule because the print engine takes its page geometry from the
+# layout it is handed and ignores an @page margin -- so this is the one authority
+# for where the sheet's edges are. Keep --page-width in the template in step with
+# them: it sizes the content column to what is left between the side margins.
+PAGE_SIZE_ID = qtg.QPageSize.PageSizeId.A4
+PAGE_MARGINS_MM = (12, 12, 12, 14)  # left, top, right, bottom
+
+# How long to wait for the page to be laid out and printed before giving up.
+# Generous: the document carries every graph as an embedded image, so it runs to
+# several megabytes.
+RENDER_TIMEOUT_MS = 120_000
 
 # Source voltage the reference set of graphs is drawn at, alongside the graphs
 # for whatever excitation the user currently has set up.
@@ -386,12 +413,8 @@ def _graphs_html(graphs: list[dict]) -> str:
 
 
 def _state_json(state: dict) -> str:
-    """The session state, for a report to stay traceable to the model behind it.
-
-    Escaped so that no value can close the script element it is carried in.
-    """
-    state = {**state, "application_data": APP_DEFINITIONS}
-    return json.dumps(state, indent=4).replace("</", "<\\/")
+    "The session state, for a report to stay traceable to the model behind it."
+    return json.dumps({**state, "application_data": APP_DEFINITIONS}, indent=4)
 
 
 def _meta_line() -> str:
@@ -404,8 +427,11 @@ def _meta_line() -> str:
 
 
 def build_html(title: str, description: str, results_html: str,
-               input_sections: list, graphs: list, subtitle: str, state: dict) -> str:
-    "Fill the report template. All caller-supplied text is escaped here."
+               input_sections: list, graphs: list, subtitle: str) -> str:
+    """Fill the report template, giving the document WeasyPrint lays out.
+
+    All caller-supplied text is escaped here.
+    """
     template = Template(get_main_dir().joinpath(TEMPLATE_FILE).read_text(encoding="utf-8"))
 
     return template.substitute(
@@ -418,7 +444,6 @@ def build_html(title: str, description: str, results_html: str,
         inputs=_inputs_html(input_sections),
         graphs=_graphs_html(graphs),
         meta=_meta_line(),
-        state_json=_state_json(state),
         )
 
 
@@ -449,7 +474,102 @@ def prompt_report_path(parent, start_dir: str, title: str) -> Path | None:
     return file
 
 
-def write_report(file: Path, document: str) -> None:
-    "Write the report document to disk."
+def _page_layout() -> qtg.QPageLayout:
+    "The sheet the document is laid out on."
+    left, top, right, bottom = PAGE_MARGINS_MM
+    return qtg.QPageLayout(qtg.QPageSize(PAGE_SIZE_ID),
+                           qtg.QPageLayout.Orientation.Portrait,
+                           qtc.QMarginsF(left, top, right, bottom),
+                           qtg.QPageLayout.Unit.Millimeter,
+                           )
+
+
+def _print_to_pdf(document: str, file: Path) -> None:
+    """Lay the HTML out onto sheets and print them to 'file'.
+
+    The document is handed over as a file rather than through setHtml(), which
+    builds a data: URL out of what it is given and so inherits the engine's 2 MB
+    cap on those -- a report carrying a dozen embedded graphs passes that several
+    times over.
+
+    Loading and printing are both asynchronous. A local event loop waits for each
+    in turn, so that the function does not return while the file is still being
+    written, with a timeout so a page that never finishes cannot hang the
+    application.
+    """
+    page = QWebEnginePage()
+    loop = qtc.QEventLoop()
+    outcome = {}
+
+    def loaded(ok: bool) -> None:
+        if not ok:
+            outcome["error"] = "the document could not be laid out"
+            loop.quit()
+            return
+        page.printToPdf(str(file), _page_layout())
+
+    def printed(_path: str, ok: bool) -> None:
+        if ok:
+            outcome["done"] = True
+        else:
+            outcome["error"] = "the document could not be printed"
+        loop.quit()
+
+    page.loadFinished.connect(loaded)
+    page.pdfPrintingFinished.connect(printed)
+
+    try:
+        # The source has to stay on disk until the engine has read it, which is
+        # why the wait below happens inside this block.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            source = Path(tmp_dir, "report.html")
+            source.write_text(document, encoding="utf-8")
+            page.load(qtc.QUrl.fromLocalFile(str(source)))
+            qtc.QTimer.singleShot(RENDER_TIMEOUT_MS, loop.quit)
+            loop.exec()
+    finally:
+        page.deleteLater()
+        # Carry the deferred delete out now rather than whenever the caller's
+        # event loop next turns: the profile a page belongs to complains if it
+        # is released while any of its pages are still alive.
+        qtc.QCoreApplication.sendPostedEvents(None, qtc.QEvent.Type.DeferredDelete)
+
+    if "error" in outcome:
+        raise RuntimeError(f"Could not write the report: {outcome['error']}.")
+    if not outcome.get("done"):
+        raise RuntimeError(f"Timed out writing the report after "
+                           f"{RENDER_TIMEOUT_MS / 1000:.0f} seconds.")
+
+
+def _attach_state(file: Path, state: dict) -> None:
+    """Put the session state into the finished PDF as a file attachment.
+
+    A PDF carries nothing that it does not print, so the state travels as an
+    attachment -- viewers list it in their attachments panel -- instead of inside
+    the page. That keeps a report traceable to the model it was made from.
+    """
+    import pypdf
+
+    # The print engine writes a cross-reference trailer that pypdf reads as
+    # inconsistent and warns about. The document round-trips correctly and there
+    # is nothing a user could do about it, so the complaint is kept out of the
+    # application's log.
+    pypdf_log = logging.getLogger("pypdf._writer")
+    previous_level = pypdf_log.level
+    pypdf_log.setLevel(logging.ERROR)
+    try:
+        # clone_from reads the whole document before anything is written, so the
+        # file can be rewritten in place.
+        writer = pypdf.PdfWriter(clone_from=str(file))
+        writer.add_attachment(file.with_suffix(session_io.FILE_SUFFIX).name,
+                              _state_json(state).encode("utf-8"))
+        writer.write(str(file))
+    finally:
+        pypdf_log.setLevel(previous_level)
+
+
+def write_report(file: Path, document: str, state: dict) -> None:
+    "Lay the report document out onto A4 sheets and write it as a PDF."
     logger.info(f"Writing report '{file.name}'")
-    file.write_text(document, encoding="utf-8")
+    _print_to_pdf(document, file)
+    _attach_state(file, state)

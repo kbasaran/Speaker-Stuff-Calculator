@@ -322,7 +322,7 @@ class MainWindow(qtw.QMainWindow):
         self.signal_good_beep.emit()
 
     def create_report(self):
-        """Write a standalone HTML report describing the current design.
+        """Write a standalone PDF report describing the current design.
 
         The model is rebuilt first, so the report always documents the form as
         it stands rather than whatever was last calculated. The file is chosen
@@ -345,7 +345,8 @@ class MainWindow(qtw.QMainWindow):
         spk_sys = self.speaker_model_state["system"]
         V_source = self.speaker_model_state["V_source"]
 
-        # Rendering every graph twice takes a noticeable moment.
+        # Rendering every graph twice, then laying the pages out, takes a
+        # noticeable moment.
         qtw.QApplication.setOverrideCursor(qtc.Qt.CursorShape.WaitCursor)
         try:
             document = report.build_html(
@@ -356,9 +357,8 @@ class MainWindow(qtw.QMainWindow):
                 graphs=report.render_graphs(self.graph, spk_sys, V_source),
                 subtitle=labels.design_identity(spk_sys, V_source,
                                                 app_settings.get_value("f_max")),
-                state=self.get_state(),
                 )
-            report.write_report(file, document)
+            report.write_report(file, document, self.get_state())
         finally:
             qtw.QApplication.restoreOverrideCursor()
 

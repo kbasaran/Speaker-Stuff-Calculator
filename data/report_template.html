@@ -13,11 +13,15 @@
 
 @page {
     size: A4 portrait;
-    margin: 12mm 12mm 14mm;
+    /* The margins are set by the print layout the application hands the engine
+       (PAGE_MARGINS_MM in gui/report.py), not here: the engine takes its page
+       geometry from that layout and ignores an @page margin. Printing this file
+       straight from a browser therefore gets the browser's own margins. */
+    margin: 0;
 }
 
 :root {
-    --page-width: 186mm;   /* 210mm sheet less the 12mm margins */
+    --page-width: 186mm;   /* 210mm sheet less the 12mm side margins */
     --gutter: 7mm;         /* between the inputs and results columns */
     --ink: #1c1c1c;
     --ink-soft: #5a5a5a;
@@ -223,23 +227,16 @@ figure.graph img {
     color: var(--ink-soft);
 }
 
-/* ---- Screens narrower than the sheet ----
-   The page is built for paper; when it is read on a phone the two-column pairs
-   would leave each half unreadably narrow, so they stack instead. */
-
-@media screen and (max-width: 200mm) {
-    .columns, .graph-row { grid-template-columns: 1fr; row-gap: 3mm; }
-}
-
-/* ---- Print ---- */
+/* ---- Print ----
+   These are the rules the PDF is actually built with: WeasyPrint renders print
+   media, and the @page margins above give the sheet its edges, so the body
+   padding that frames the page in a browser has to go. Keeping them in a media
+   block rather than folding them into the rules above leaves the template
+   openable in a browser, which is the quickest way to try a change to it. */
 
 @media print {
     body { padding: 0; }
     main { width: auto; }
-    /* The panel tint is deliberately left to the print dialog's "background
-       graphics" setting rather than forced either way: with it off the border
-       alone still holds each panel together, with it on the sheet looks like
-       what is on screen. */
     table.inputs { break-inside: avoid; page-break-inside: avoid; }
 }
 </style>
@@ -280,10 +277,6 @@ nonlinearities and effects caused by it, such as compression.</p>
 <p class="meta">$meta</p>
 
 </main>
-
-<script type="application/json" id="speaker-calculator-state">
-$state_json
-</script>
 
 </body>
 </html>
