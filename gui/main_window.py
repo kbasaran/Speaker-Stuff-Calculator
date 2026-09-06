@@ -25,8 +25,9 @@ from gui.dialogs import SettingsDialog, CurveExportMenu
 from gui.help_menu import show_file_paths, show_physics_constants
 from gui.coil_options import update_coil_options_combobox
 from gui.input_section_tab_widget import InputSectionTabWidget
-from gui.plot_builders import PLOT_BUILDERS
+from gui.plot_builders import PLOT_BUILDERS, apply_spec, graph_is_available
 from gui import labels
+from gui import report
 from gui import session_io
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,8 @@ class MainWindow(qtw.QMainWindow):
         new_window_action = file_menu.addAction("New window", self.duplicate_window)
         load_action = file_menu.addAction("Load state..", self.load_state_from_file)
         save_action = file_menu.addAction("Save state..", self.save_state_to_file)
+        file_menu.addSeparator()
+        report_action = file_menu.addAction("Create report..", self.create_report)
 
         edit_menu = menu_bar.addMenu("Edit")
         settings_action = edit_menu.addAction("Settings..", lambda: SettingsDialog().exec())
@@ -318,6 +321,49 @@ class MainWindow(qtw.QMainWindow):
         session_io.write_state_file(file, state)
         self.signal_good_beep.emit()
 
+    def create_report(self):
+        """Write a standalone HTML report describing the current design.
+
+        The model is rebuilt first, so the report always documents the form as
+        it stands rather than whatever was last calculated. The file is chosen
+        before the graphs are rendered, so a canceled dialog does not come after
+        the wait.
+        """
+        if not self._update_model_button_clicked():
+            return  # unbuildable model; the results box already says why
+
+        file = report.prompt_report_path(self,
+                                         app_settings.get_value("last_used_folder"),
+                                         self.title_textbox.text(),
+                                         )
+        if file is None:
+            return  # nothing selected, so pick file is canceled
+
+        # bookkeeping only -- must not emit settings_changed (see save_state_to_file)
+        app_settings.set_value("last_used_folder", str(file.parent), signal=False)
+
+        spk_sys = self.speaker_model_state["system"]
+        V_source = self.speaker_model_state["V_source"]
+
+        # Rendering every graph twice takes a noticeable moment.
+        qtw.QApplication.setOverrideCursor(qtc.Qt.CursorShape.WaitCursor)
+        try:
+            document = report.build_html(
+                title=self.title_textbox.text(),
+                description=self.notes_textbox.toPlainText(),
+                results_html=self.speaker_model_state["summary_html"],
+                input_sections=report.collect_extra_inputs(self.input_form),
+                graphs=report.render_graphs(self.graph, spk_sys, V_source),
+                subtitle=labels.design_identity(spk_sys, V_source,
+                                                app_settings.get_value("f_max")),
+                state=self.get_state(),
+                )
+            report.write_report(file, document)
+        finally:
+            qtw.QApplication.restoreOverrideCursor()
+
+        self.signal_good_beep.emit()
+
     @qtc.Slot(str)
     def load_state_from_file(self, file_arg: (Path | str) = None, update_last_used_folder=True):
         # no file provided as argument -> raise a file selection menu
@@ -388,7 +434,14 @@ class MainWindow(qtw.QMainWindow):
             self.signal_good_beep.emit()
 
 
-    def _update_model_button_clicked(self):
+    def _update_model_button_clicked(self) -> bool:
+        """Rebuild the model from the form and refresh everything shown.
+
+        Returns whether a model could be built, so callers that only make sense
+        with an up-to-date model -- the report -- can abort instead of working
+        from a stale one. The reason for a failure is already in the results box
+        by then.
+        """
         self.results_textbox.clear()
 
         if self.input_form.interactable_widgets["motor_spec_type"].currentData() == "define_coil":
@@ -399,7 +452,7 @@ class MainWindow(qtw.QMainWindow):
             if not self.input_form.interactable_widgets["coil_options"].currentData():
                 self.results_textbox.setHtml("<h3>No coil found.</h3><p>Please check your input form.</p>")
                 self.signal_bad_beep.emit()
-                return
+                return False
 
         vals = self.get_state()
         speaker_driver = construct_SpeakerDriver(vals)
@@ -413,7 +466,7 @@ class MainWindow(qtw.QMainWindow):
             # the update, leaving any previous model untouched.
             self.results_textbox.setHtml(f"<h3>Model update failed.</h3><p>{html.escape(str(e))}</p>")
             self.signal_bad_beep.emit()
-            return
+            return False
         V_source = calculate_voltage(vals["excitation_value"],
                                         vals["excitation_type"]["current_data"],
                                         re=speaker_driver.Re,
@@ -428,6 +481,7 @@ class MainWindow(qtw.QMainWindow):
 
         self.update_all_results()
         self.signal_good_beep.emit()
+        return True
 
 
     def _export_curve_clicked(self):
@@ -471,37 +525,25 @@ class MainWindow(qtw.QMainWindow):
 
         spec = builder(spk_sys, freqs, V_source, V_spk, W_spk)
 
-        self.graph.set_y_limits_policy(spec.ylimits_policy)
-        # The graph widget autoscales the x axis unless a policy says otherwise.
-        # The curves are calculated over exactly f_min..f_max, so pin the axis to
-        # that same range. The limits are passed explicitly instead of relying on
-        # the widget's own fallback to the settings, so the axis always agrees
-        # with the freqs array above.
-        self.graph.set_x_limits_policy("fixed",
-                                       min=app_settings.get_value("f_min"),
-                                       max=app_settings.get_value("f_max"),
-                                       )
-        self.graph.set_title(spec.title)
-        self.graph.set_xlabel(spec.xlabel)
-        self.graph.set_ylabel(spec.ylabel)
-
-        for i, (name, y) in enumerate(spec.curves.items()):
-            self.graph.add_line2d(i, name, (freqs, y), update_figure=False,
-                                  line2d_kwargs=spec.line_kwargs.get(name, {}))
-
-        self.graph.update_figure()
+        # Drawn through the shared helper so a graph in a report is the same
+        # picture as the one on screen. The graph widget autoscales the x axis
+        # unless a policy says otherwise; the curves are calculated over exactly
+        # f_min..f_max, so the axis is pinned to that same range.
+        apply_spec(self.graph, spec, freqs,
+                   app_settings.get_value("f_min"),
+                   app_settings.get_value("f_max"),
+                   )
 
     def _update_graph_data_choice_availability(self, spk_sys):
         """Enable only the graph choices the current speaker system can provide.
 
-        Availability is read off the built model rather than off the input form, so
-        the buttons always agree with what the plot builders would find in it. A
-        choice that is disabled while checked simply leaves its graph empty.
+        The conditions themselves live with the plot builders, so the buttons and
+        the report agree on which graphs a model has. A choice that is disabled
+        while checked simply leaves its graph empty.
         """
-        # Relative displacements exist only against a parent body, box pressure only
-        # when there is enclosure air; both mirror the checks in the model's getters.
-        self.graph_data_choice.buttons()[2].setEnabled(spk_sys.parent_body is not None)
-        self.graph_data_choice.buttons()[7].setEnabled(spk_sys.enclosure is not None)
+        for button in self.graph_data_choice.buttons():
+            button_id = self.graph_data_choice.button_group.id(button)
+            button.setEnabled(graph_is_available(button_id, spk_sys))
 
     def _update_window_title(self):
         """Identify this window's design in the title bar, task bar and switcher."""
@@ -525,4 +567,8 @@ class MainWindow(qtw.QMainWindow):
                                                            app_settings.get_value("calc_ppo"))
         summary_all = self.speaker_model_state["system"].get_summary(
             self.speaker_model_state["V_source"], freqs)
+        # Kept unwrapped as well: the report renders the same markup in a browser,
+        # where the rule under an <h2> is plain CSS and the table hack below would
+        # only get in the way.
+        self.speaker_model_state["summary_html"] = summary_all
         self.results_textbox.setHtml(_rule_under_h2(summary_all))
