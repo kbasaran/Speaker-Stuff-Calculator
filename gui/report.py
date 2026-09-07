@@ -27,7 +27,6 @@ import math
 import re
 import tempfile
 import time
-from itertools import groupby
 from pathlib import Path
 from string import Template
 
@@ -75,10 +74,26 @@ RENDER_TIMEOUT_MS = 120_000
 # for whatever excitation the user currently has set up.
 REFERENCE_VOLTAGE = 2.83
 
-# Images are rendered at this multiple of the application's screen dpi and then
-# displayed at the application's own pixel size, so they stay sharp on
-# high-resolution displays and in print.
-IMAGE_SCALE = 2
+# The size one graph is printed at, in millimetres. The width is the full
+# content column (--page-width in the template) and the height is a third of
+# what is left of a sheet once the "Graphs" heading has taken its share, so
+# three graphs go on a page. Keep it in step with figure.graph in the template.
+GRAPH_SIZE_MM = (186, 80)
+
+# How much larger than the printed size the figures are laid out. Everything
+# matplotlib draws around the curves -- the title, the tick labels, the lines --
+# is sized in points by the style, so the only way to make it smaller on the
+# page is to give it a larger page to be drawn on and then print that at a
+# reduction: at a scale of 2 the text lands at half its point size. (Resolution
+# has nothing to do with it. The image is printed at GRAPH_SIZE_MM whatever its
+# pixel count, so raising the dpi alone yields the same picture with more pixels
+# in it.) The aspect ratio is untouched, so the printed size stays as above.
+GRAPH_DRAW_SCALE = 2
+
+# Pixels per inch of *printed* graph. The images are rendered to this and then
+# laid into the page at GRAPH_SIZE_MM, so it is the resolution they are actually
+# reproduced at, on paper and on screen alike.
+IMAGE_RESOLUTION_PPI = 300
 
 # graph_data_choice ids whose curves do not depend on the drive level, so they
 # are reported once instead of once per excitation. Impedance is a property of
@@ -280,28 +295,29 @@ def _excitations_for(graph_id: int, V_source: float) -> list[float]:
     return [REFERENCE_VOLTAGE, V_source]
 
 
-def render_graphs(graph_widget, spk_sys, V_source: float) -> list[dict]:
+def render_graphs(spk_sys, V_source: float) -> list[dict]:
     """Render every graph the model supports, at the reference and current input.
 
     The graphs come out in choice-button order, and the ones belonging to the
-    same choice are adjacent, which is what lets the document lay each pair out
-    side by side.
+    same choice are adjacent, so a choice reported at both drive levels has its
+    two graphs one under the other, to be compared.
 
-    'graph_widget' is only read from, for the size the figures are drawn at;
-    the drawing happens on a widget of this function's own.
+    The drawing happens on a widget of this function's own, sized for the page
+    rather than for the screen, so nothing here depends on the state or the
+    geometry of the graph the user is looking at.
     """
     freqs = signal_tools.generate_log_spaced_freq_list(app_settings.get_value("f_min"),
                                                        app_settings.get_value("f_max"),
                                                        app_settings.get_value("calc_ppo"),
                                                        )
 
-    on_screen_figure = graph_widget.canvas.figure
-    size_inches = tuple(on_screen_figure.get_size_inches())
-    dpi = float(on_screen_figure.dpi)
+    size_inches = tuple(mm / 25.4 * GRAPH_DRAW_SCALE for mm in GRAPH_SIZE_MM)
+    # One drawn inch is GRAPH_DRAW_SCALE printed inches, so this puts
+    # IMAGE_RESOLUTION_PPI pixels into each inch of the graph on the page.
+    dpi = IMAGE_RESOLUTION_PPI / GRAPH_DRAW_SCALE
 
     offscreen = MatplotlibWidget(layout_engine="tight")
     offscreen.canvas.figure.set_size_inches(*size_inches)
-    offscreen.canvas.figure.set_dpi(dpi)
 
     graphs = []
     try:
@@ -331,12 +347,9 @@ def render_graphs(graph_widget, spk_sys, V_source: float) -> list[dict]:
 
 
 def _figure_to_png(figure, dpi: float) -> bytes:
-    "The figure as PNG bytes, rendered at IMAGE_SCALE times its screen resolution."
+    "The figure as PNG bytes, rendered at 'dpi' pixels to the drawn inch."
     buffer = io.BytesIO()
-    # Only the resolution is raised; the size in inches -- and with it every font
-    # size and line width, which are set in points -- is left alone, so the image
-    # is the same picture with more pixels in it.
-    figure.savefig(buffer, format="png", dpi=dpi * IMAGE_SCALE)
+    figure.savefig(buffer, format="png", dpi=dpi)
     return buffer.getvalue()
 
 
@@ -368,28 +381,8 @@ def _inputs_html(sections: list[tuple[str, list[dict]]]) -> str:
     return "\n".join(parts)
 
 
-def _graph_rows(graphs: list[dict]) -> list[list[dict]]:
-    """The graphs arranged into rows of at most two, in graph-choice order.
-
-    A choice reported at both drive levels keeps a row to itself, so its two
-    graphs always sit side by side to be compared. A choice with a single graph
-    -- the voltage-independent ones, and every choice when the current input
-    already is the reference voltage -- shares its row with the next single one
-    instead of leaving half the page empty down the whole section. Only
-    neighbours are paired up, so the order of the graph choices is kept.
-    """
-    rows = []
-    for _, group in groupby(graphs, key=lambda graph: graph["id"]):
-        group = list(group)
-        if len(group) == 1 and rows and len(rows[-1]) == 1:
-            rows[-1].append(group[0])
-        else:
-            rows.append(group)
-    return rows
-
-
 def _graphs_html(graphs: list[dict]) -> str:
-    """The graphs as base64 PNGs, laid out two to a row.
+    """The graphs as base64 PNGs, one to a row and the full width of the column.
 
     No heading is written: every figure carries its own title and excitation
     line, drawn into the image.
@@ -398,16 +391,13 @@ def _graphs_html(graphs: list[dict]) -> str:
         return "<p>-</p>"
 
     parts = []
-    for row in _graph_rows(graphs):
-        parts.append('<div class="graph-row">')
-        for graph in row:
-            encoded = base64.b64encode(graph["png"]).decode("ascii")
-            parts.append('<figure class="graph">'
-                         f'<img src="data:image/png;base64,{encoded}"'
-                         f' width="{graph["width"]}" height="{graph["height"]}"'
-                         f' alt="{html.escape(graph["alt"])}">'
-                         '</figure>')
-        parts.append("</div>")
+    for graph in graphs:
+        encoded = base64.b64encode(graph["png"]).decode("ascii")
+        parts.append('<figure class="graph">'
+                     f'<img src="data:image/png;base64,{encoded}"'
+                     f' width="{graph["width"]}" height="{graph["height"]}"'
+                     f' alt="{html.escape(graph["alt"])}">'
+                     '</figure>')
 
     return "\n".join(parts)
 

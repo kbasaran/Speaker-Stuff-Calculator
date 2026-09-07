@@ -171,8 +171,8 @@ table.inputs td.value .unit {
 }
 
 /* The graphs start their own sheet. Asking politely, with break-after:avoid on
-   the heading, is not enough: a graph row cannot be split, so when one does not
-   fit in what is left of the page the browser moves the row and leaves the
+   the heading, is not enough: a graph cannot be split, so when one does not
+   fit in what is left of the page the browser moves it and leaves the
    heading stranded at the foot of the previous sheet. Breaking before the
    heading puts the design's numbers on the opening page and every graph after
    them, whatever the length of the tables above. Ignored on screen, where there
@@ -184,25 +184,17 @@ table.inputs td.value .unit {
 }
 
 /* ---- Graphs ----
-   One row per graph choice, the two drive levels of a choice side by side and
-   half a sheet wide each. The images carry the app's own pixel size in their
-   width/height attributes, which fixes the aspect ratio; the width below scales
-   them into the column. */
-
-.graph-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    /* No gap: matplotlib draws each figure with its own white margin around the
-       axes, which already sets the two apart. */
-    column-gap: 0;
-    align-items: start;
-    margin: 0 0 3mm;
-    break-inside: avoid;
-    page-break-inside: avoid;
-}
+   One graph per row, the full width of the content column, and three to a
+   sheet. The images are drawn to the printed proportions (GRAPH_SIZE_MM in
+   gui/report.py), so the height that follows from their aspect ratio is the
+   80mm the sizes here are reckoned with -- keep the two in step. The 5mm below
+   each graph brings a row to 85mm, which leaves the three of them room on the
+   opening sheet even after the "Graphs" heading has taken its share of it. */
 
 figure.graph {
-    margin: 0;
+    margin: 0 0 5mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
 }
 
 figure.graph img {
