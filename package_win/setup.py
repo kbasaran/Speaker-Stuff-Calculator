@@ -50,7 +50,14 @@ print()
 build_exe_options = {
     "packages": ["numpy", "scipy", "matplotlib", "sympy", "pandas",
                  "odf",  # dynamically imported by pandas as the .ods engine; not visible to static analysis
-                 "sounddevice", "soundfile"],  # ship their bundled PortAudio/libsndfile binaries
+                 "sounddevice", "soundfile",  # ship their bundled PortAudio/libsndfile binaries
+                 # The report attaches the session state with pypdf, imported inside the
+                 # function that needs it. cx_Freeze does follow that import, but only if
+                 # the package is installed in the build environment -- when it is not, the
+                 # build succeeds quietly and the frozen application raises ImportError as
+                 # soon as a report is written. Naming it here turns that into a build-time
+                 # failure instead.
+                 "pypdf"],
     # QtWebEngineCore, which the report uses to lay out and print the PDF, pulls
     # QtPrintSupport in from its C++ side. The import never appears in Python source,
     # and the stub cx_Freeze substitutes for the binding names every other dependency
