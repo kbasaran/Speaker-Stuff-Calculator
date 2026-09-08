@@ -66,7 +66,11 @@ build_exe_options = {
     # binding and its Qt6PrintSupport library packaged.
     "includes": ["PySide6.QtPrintSupport"],
     "include_files": files_to_include,
-    "silent_level": 1,
+    # 0 prints every module cx_Freeze copies, on top of the missing-module and
+    # missing-dependency reports that levels below 2 and 3 already show. Verbose,
+    # but it is the only way to confirm from the build log that something made it
+    # into the package.
+    "silent_level": 0,
 }
 
 bdist_msi_options = {
