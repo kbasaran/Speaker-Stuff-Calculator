@@ -173,3 +173,43 @@ PLOT_BUILDERS = {
     6: build_phase,
     7: build_box_pressure,
 }
+
+
+def graph_is_available(graph_id: int, spk_sys) -> bool:
+    """Whether a speaker system can supply the graph a choice id names.
+
+    The choice buttons and the report both ask this, so the conditions live
+    beside the builders they belong to instead of once in each caller. They are
+    read off the built model rather than off the input form, so they always
+    agree with what the builder would find in it.
+    """
+    if graph_id == 2:  # displacements relative to the parent body
+        return spk_sys.parent_body is not None
+    if graph_id == 7:  # pressure inside the enclosure
+        return spk_sys.enclosure is not None
+    return True
+
+
+def apply_spec(graph, spec: PlotSpec, freqs, x_min: float, x_max: float) -> None:
+    """Draw a built spec onto a graph widget.
+
+    Shared by the main window and the report so that a graph in a report is the
+    same picture as the one on screen. 'graph' is a MatplotlibWidget, used only
+    through its public methods -- this module stays free of Qt.
+
+    The x limits are passed in rather than read from the settings, so the axis
+    always agrees with the 'freqs' the curves were actually calculated over.
+    """
+    graph.clear_graph()
+
+    graph.set_y_limits_policy(spec.ylimits_policy)
+    graph.set_x_limits_policy("fixed", min=x_min, max=x_max)
+    graph.set_title(spec.title)
+    graph.set_xlabel(spec.xlabel)
+    graph.set_ylabel(spec.ylabel)
+
+    for i, (name, y) in enumerate(spec.curves.items()):
+        graph.add_line2d(i, name, (freqs, y), update_figure=False,
+                         line2d_kwargs=spec.line_kwargs.get(name, {}))
+
+    graph.update_figure()

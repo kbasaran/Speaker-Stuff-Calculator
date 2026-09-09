@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="$app_name $app_version">
+<title>$title</title>
+<style>
+/* The document is laid out for A4 paper: the content column is exactly the
+   printable width of a portrait A4 sheet (210mm less the page margins), and the
+   sizes below are in points and millimetres so that what the browser shows is
+   what comes out of the printer. */
+
+@page {
+    size: A4 portrait;
+    /* The margins are set by the print layout the application hands the engine
+       (PAGE_MARGINS_MM in gui/report.py), not here: the engine takes its page
+       geometry from that layout and ignores an @page margin. Printing this file
+       straight from a browser therefore gets the browser's own margins. */
+    margin: 0;
+}
+
+:root {
+    --page-width: 186mm;   /* 210mm sheet less the 12mm side margins */
+    --gutter: 7mm;         /* between the inputs and results columns */
+    --ink: #1c1c1c;
+    --ink-soft: #5a5a5a;
+    --rule: #b8b8b8;
+    --rule-soft: #e0e0e0;
+    --paper: #ffffff;
+    --panel: #f6f6f4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 8mm 6mm 12mm;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.35;
+}
+
+main {
+    width: var(--page-width);
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+h1 {
+    font-size: 17pt;
+    line-height: 1.15;
+    margin: 0 0 0.1em;
+}
+
+h2 {
+    font-size: 11.5pt;
+    margin: 5mm 0 1.5mm;
+    padding-bottom: 0.5mm;
+    border-bottom: 1px solid var(--rule);
+    break-after: avoid;
+    page-break-after: avoid;
+}
+
+h3 {
+    font-size: 10pt;
+    margin: 3mm 0 0.8mm;
+    break-after: avoid;
+    page-break-after: avoid;
+}
+
+h4 {
+    font-size: 9.5pt;
+    margin: 2.2mm 0 0.5mm;
+}
+
+p { margin: 0.5mm 0; }
+
+/* ---- Header ---- */
+
+.doc-header {
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 2mm;
+    margin-bottom: 1mm;
+}
+
+.doc-subtitle {
+    color: var(--ink-soft);
+    font-size: 8.5pt;
+}
+
+.description {
+    white-space: pre-wrap;
+    margin: 1mm 0 0;
+}
+
+.description:empty::before {
+    content: "-";
+    color: var(--ink-soft);
+}
+
+/* ---- The inputs / results pair ----
+   Half a sheet each, inputs on the left, on one unbroken tinted panel: the tint
+   is carried by the grid itself rather than by each half, so the gutter between
+   the columns is part of the same area instead of a stripe of paper running
+   down the middle. The columns are independent, so the taller of the two
+   decides how far down the page the panel reaches.
+
+   Both headings sit inside the panel, which is what lets its top edge be a
+   single straight line across the page. */
+
+.columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: var(--gutter);
+    align-items: start;
+    /* The headings that would normally open a section sit inside this panel, so
+       the gap an <h2> would have left above it has to come from the panel. */
+    margin-top: 5mm;
+    background: var(--panel);
+    border: 1px solid var(--rule-soft);
+    border-radius: 1mm;
+    padding: 0.5mm 3mm 2.5mm;
+}
+
+/* The outer margins of whatever leads and closes a column are dropped, leaving
+   the panel's padding to space the contents off its edges. */
+.columns > section > *:first-child { margin-top: 2mm; }
+.columns > section > *:last-child { margin-bottom: 0; }
+
+/* The results markup comes verbatim from SpeakerSystem.get_summary, which is
+   written for Qt's rich-text engine: column gaps inside a line are runs of
+   &nbsp; and the headings carry no classes. Only the shared heading/paragraph
+   rules above apply to it, except that its own <h2> parts are stepped down here
+   so the "Results" heading leading the column still reads as the senior one,
+   and to the size of the <h3> headings that lead the input tables opposite. */
+
+.results h2 {
+    font-size: 10pt;
+    margin-top: 3mm;
+}
+
+/* ---- Input tables ---- */
+
+table.inputs {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5mm 0 2mm;
+}
+
+table.inputs td {
+    padding: 0.6mm 0 0.6mm 0;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: baseline;
+}
+
+/* The unit sits beside the number instead of in a column of its own, so the
+   table fits in half a sheet. The label takes whatever width is left over and
+   wraps; the value never does. */
+table.inputs td.value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding-left: 3mm;
+}
+
+table.inputs td.value .unit {
+    color: var(--ink-soft);
+}
+
+/* The graphs start their own sheet. Asking politely, with break-after:avoid on
+   the heading, is not enough: a graph cannot be split, so when one does not
+   fit in what is left of the page the browser moves it and leaves the
+   heading stranded at the foot of the previous sheet. Breaking before the
+   heading puts the design's numbers on the opening page and every graph after
+   them, whatever the length of the tables above. Ignored on screen, where there
+   are no pages to break. */
+
+.new-page {
+    break-before: page;
+    page-break-before: always;
+}
+
+/* ---- Graphs ----
+   One graph per row, the full width of the content column, and three to a
+   sheet. The images are drawn to the printed proportions (GRAPH_SIZE_MM in
+   gui/report.py), so the height that follows from their aspect ratio is the
+   80mm the sizes here are reckoned with -- keep the two in step. The 5mm below
+   each graph brings a row to 85mm, which leaves the three of them room on the
+   opening sheet even after the "Graphs" heading has taken its share of it. */
+
+figure.graph {
+    margin: 0 0 5mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+figure.graph img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+/* ---- Footer ---- */
+
+.disclaimer {
+    margin-top: 6mm;
+    padding-top: 2mm;
+    border-top: 1px solid var(--rule);
+    font-style: italic;
+    color: var(--ink-soft);
+}
+
+.meta {
+    margin-top: 1.5mm;
+    font-size: 8pt;
+    color: var(--ink-soft);
+}
+
+/* ---- Print ----
+   These are the rules the PDF is actually built with: WeasyPrint renders print
+   media, and the @page margins above give the sheet its edges, so the body
+   padding that frames the page in a browser has to go. Keeping them in a media
+   block rather than folding them into the rules above leaves the template
+   openable in a browser, which is the quickest way to try a change to it. */
+
+@media print {
+    body { padding: 0; }
+    main { width: auto; }
+    table.inputs { break-inside: avoid; page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<header class="doc-header">
+<h1>$title</h1>
+<p class="doc-subtitle">$subtitle</p>
+</header>
+
+<h2>Description</h2>
+<p class="description">$description</p>
+
+<div class="columns">
+
+<section>
+<h2>Inputs</h2>
+$inputs
+</section>
+
+<section>
+<h2>Results</h2>
+<div class="results">
+$results
+</div>
+</section>
+
+</div>
+
+<h2 class="new-page">Graphs</h2>
+$graphs
+
+<p class="disclaimer">All results are based on linear calculations. Consider eventual
+nonlinearities and effects caused by it, such as compression.</p>
+
+<p class="meta">$meta</p>
+
+</main>
+
+</body>
+</html>

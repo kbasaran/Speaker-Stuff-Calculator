@@ -18,6 +18,7 @@ Lumped element calculation tool for loudspeaker design, made using Qt for Python
 * Possible to manipulate graph settings and export curves.
 * Calculation of magnet system mechanical clearances.
 * Save/load of state.
+* PDF report creation for results, including graphs.
 
 ## Out of scope
 * Nonlinearities in the system

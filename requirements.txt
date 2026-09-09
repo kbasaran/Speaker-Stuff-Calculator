@@ -9,3 +9,4 @@ scipy == 1.17.*
 soundfile
 sounddevice == 0.5.*
 cx-freeze == 8.6.*
+pypdf == 6.*

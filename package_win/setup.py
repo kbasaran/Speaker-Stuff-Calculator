@@ -50,9 +50,27 @@ print()
 build_exe_options = {
     "packages": ["numpy", "scipy", "matplotlib", "sympy", "pandas",
                  "odf",  # dynamically imported by pandas as the .ods engine; not visible to static analysis
-                 "sounddevice", "soundfile"],  # ship their bundled PortAudio/libsndfile binaries
+                 "sounddevice", "soundfile",  # ship their bundled PortAudio/libsndfile binaries
+                 # The report attaches the session state with pypdf, imported inside the
+                 # function that needs it. cx_Freeze does follow that import, but only if
+                 # the package is installed in the build environment -- when it is not, the
+                 # build succeeds quietly and the frozen application raises ImportError as
+                 # soon as a report is written. Naming it here turns that into a build-time
+                 # failure instead.
+                 "pypdf"],
+    # QtWebEngineCore, which the report uses to lay out and print the PDF, pulls
+    # QtPrintSupport in from its C++ side. The import never appears in Python source,
+    # and the stub cx_Freeze substitutes for the binding names every other dependency
+    # of it but that one, so the module is left out and the frozen build raises
+    # ImportError the moment the report is opened. Name it explicitly to have the
+    # binding and its Qt6PrintSupport library packaged.
+    "includes": ["PySide6.QtPrintSupport"],
     "include_files": files_to_include,
-    "silent_level": 1,
+    # 0 prints every module cx_Freeze copies, on top of the missing-module and
+    # missing-dependency reports that levels below 2 and 3 already show. Verbose,
+    # but it is the only way to confirm from the build log that something made it
+    # into the package.
+    "silent_level": 0,
 }
 
 bdist_msi_options = {

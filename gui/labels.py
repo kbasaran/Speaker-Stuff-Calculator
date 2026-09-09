@@ -55,18 +55,16 @@ def _total_spl(spk_sys, freqs, V_source) -> np.ndarray:
     return SPL
 
 
-def window_title(spk_sys, V_source, user_title: str, f_max: float) -> str:
-    """One-line design identity for the window title bar.
+def design_identity(spk_sys, V_source, f_max: float) -> str:
+    """The handful of numbers that distinguish one design from another at a glance.
 
-    Puts the user's own title first, followed by the handful of numbers that
-    distinguish one design from another at a glance, so windows holding
-    different designs can be told apart in the task bar and window switcher.
+    Shared by the window title and the report header, so a report carries the
+    same identity as the window it was made from.
     """
     spk = spk_sys.speaker
     V_spk, W_spk = excitation_at_speaker(spk_sys, V_source)
 
-    parts = [user_title.strip() or "Untitled",
-             f"{spk.Sd * 1e4:.3g} cm²",
+    parts = [f"{spk.Sd * 1e4:.3g} cm²",
              f"{spk.Bl**2 / spk.Re:.2g} N²/W",
              f"{spk.Mms * 1e3:.3g} g",
              ]
@@ -76,9 +74,19 @@ def window_title(spk_sys, V_source, user_title: str, f_max: float) -> str:
     if spk.Sd > 0:
         freqs = np.array([TITLE_SPL_LOW_FREQ, f_max])
         spl_low, spl_high = _total_spl(spk_sys, freqs, V_source)
-        parts.append(f"{spl_low:.1f}/{spl_high:.1f} dB @ {TITLE_SPL_LOW_FREQ:.0f}/{f_max:.0f} Hz")
+        parts.append(f"{spl_low:.1f}/{spl_high:.1f} dB @ {W_spk:.2g} W, {TITLE_SPL_LOW_FREQ:.0f}/{f_max:.0f} Hz")
 
-    parts.append(f"{W_spk:.2g} W")
+    return " - ".join(parts)
+
+
+def window_title(spk_sys, V_source, user_title: str, f_max: float) -> str:
+    """One-line design identity for the window title bar.
+
+    Puts the user's own title first, followed by the design's identifying
+    numbers, so windows holding different designs can be told apart in the task
+    bar and window switcher.
+    """
+    name = user_title.strip() or "Untitled"
     app_version = f"{APP_DEFINITIONS["app_name"]} {APP_DEFINITIONS["version"]}"
 
-    return "  -  ".join(parts) + "  /  " + app_version
+    return name + "  -  " + design_identity(spk_sys, V_source, f_max) + "  /  " + app_version
